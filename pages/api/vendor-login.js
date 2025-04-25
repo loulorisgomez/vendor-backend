@@ -10,6 +10,14 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
+res.setHeader('Access-Control-Allow-Origin', 'https://2acollection.com');
+res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+if (req.method === 'OPTIONS') {
+  return res.status(200).end(); // Respond to preflight
+}
+
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
