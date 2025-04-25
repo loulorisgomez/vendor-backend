@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [color, setColor] = useState('');
   const [barcode, setBarcode] = useState('');
   const [message, setMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [scanning, setScanning] = useState(false);
   const [foundProduct, setFoundProduct] = useState(null);
   const [adjustedQuantity, setAdjustedQuantity] = useState(0);
@@ -26,13 +27,12 @@ export default function Dashboard() {
     e.preventDefault();
 
     if (!barcode) {
-      setMessage('❌ Barcode is required.');
+      setErrorMessage('❌ Barcode is required.');
       return;
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // 🛡 Check if barcode already exists
     const { data: existing, error: lookupError } = await supabase
       .from('inventory')
       .select('id')
@@ -40,7 +40,7 @@ export default function Dashboard() {
       .single();
 
     if (existing) {
-      setMessage('❌ Barcode already exists. Please scan a different product.');
+      setErrorMessage('❌ Barcode already exists. Please scan a different product.');
       return;
     }
 
@@ -63,7 +63,7 @@ export default function Dashboard() {
 
     if (error) {
       console.error('❌ Error saving product:', error);
-      setMessage(`❌ Failed to save product: ${error.message}`);
+      setErrorMessage(`❌ Failed to save product: ${error.message}`);
     } else {
       console.log('✅ Product saved:', data);
       setMessage('✅ Product saved to inventory!');
@@ -81,6 +81,8 @@ export default function Dashboard() {
     setBarcode('');
     setFoundProduct(null);
     setUseExistingProduct(false);
+    setMessage('');
+    setErrorMessage('');
   };
 
   const startScanner = () => {
@@ -136,7 +138,7 @@ export default function Dashboard() {
       console.log('✅ Product found:', data);
       setFoundProduct(data);
       setAdjustedQuantity(data.quantity);
-      setShowModal(true); // 🛎 Show modal
+      setShowModal(true);
       setMessage('');
     }
   };
@@ -145,6 +147,7 @@ export default function Dashboard() {
     setUseExistingProduct(true);
     setShowModal(false);
     setMessage('');
+    setErrorMessage('');
   };
 
   const chooseAddNew = () => {
@@ -152,6 +155,7 @@ export default function Dashboard() {
     setUseExistingProduct(false);
     setShowModal(false);
     setMessage('');
+    setErrorMessage('');
   };
 
   const increaseQuantity = async () => {
@@ -184,6 +188,13 @@ export default function Dashboard() {
     }
   };
 
+  const sizeOptions = [
+    "4M/5.5W", "4.5M/6W", "5M/6.5W", "5.5M/7W", "6M/7.5W", "6.5M/8W",
+    "7M/8.5W", "7.5M/9W", "8M/9.5W", "8.5M/10W", "9M/10.5W", "9.5M/11W",
+    "10M/11.5W", "10.5M/12W", "11M/12.5W", "11.5M/13W", "12M/13.5W",
+    "12.5M/14W", "13M/14.5W", "13.5M/15W", "14M/15.5W"
+  ];
+
   return (
     <div style={{ padding: '2rem', maxWidth: '600px', margin: 'auto' }}>
       <h1 style={{ textAlign: 'center' }}>Vendor Dashboard</h1>
@@ -204,28 +215,44 @@ export default function Dashboard() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
           <input type="text" placeholder="Product Name" value={productName} onChange={(e) => setProductName(e.target.value)} required />
           <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows="3" />
-          <input type="number" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} required />
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>$</span>
+            <input type="number" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} required />
+          </div>
+
           <input type="number" placeholder="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-          <input type="text" placeholder="Size" value={size} onChange={(e) => setSize(e.target.value)} />
+
+          <select value={size} onChange={(e) => setSize(e.target.value)} required>
+            <option value="">Select Size</option>
+            {sizeOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+
           <input type="text" placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
           <input type="text" placeholder="Barcode (optional)" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
 
           <div id="scanner" style={{ width: "100%", display: scanning ? "block" : "none", marginBottom: "1rem" }}></div>
 
-          <button
-            type="button"
-            onClick={startScanner}
-            style={{ padding: '10px', backgroundColor: 'gray', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
+          <button type="button" onClick={startScanner} style={{ padding: '10px', backgroundColor: 'gray', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
             {scanning ? "Stop Scanning" : "Scan Barcode"}
           </button>
 
-          <button
-            type="submit"
-            style={{ padding: '10px', backgroundColor: 'black', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
+          <button type="submit" style={{ padding: '10px', backgroundColor: 'black', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
             Save Product
           </button>
+
+          <button type="button" onClick={resetForm} style={{ padding: '10px', backgroundColor: '#aaa', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            Clear Form
+          </button>
+
+          {errorMessage && (
+            <p style={{ marginTop: '1rem', color: 'red' }}>{errorMessage}</p>
+          )}
+          {message && (
+            <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>{message}</p>
+          )}
         </form>
       )}
 
@@ -240,9 +267,10 @@ export default function Dashboard() {
             <button type="button" onClick={decreaseQuantity} style={{ padding: '10px', fontSize: '20px' }}>➖</button>
             <button type="button" onClick={increaseQuantity} style={{ padding: '10px', fontSize: '20px' }}>➕</button>
           </div>
-          <button onClick={chooseAddNew} style={{ marginTop: '1rem' }}>
-  Return to Add New Product
-</button>
+
+          <button onClick={chooseAddNew} style={{ marginTop: '1rem', padding: '10px', backgroundColor: 'gray', color: 'white', borderRadius: '4px' }}>
+            Return to Add New Product
+          </button>
 
           {message && <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>{message}</p>}
         </div>
