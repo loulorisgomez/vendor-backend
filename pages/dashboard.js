@@ -37,9 +37,10 @@ export default function Dashboard() {
       .from('inventory')
       .insert([product]);
 
-    if (error) {
-      console.error('❌ Error saving product:', error);
-      setMessage('❌ Failed to save product.');
+      if (error) {
+        console.error('❌ Error saving product:', error);
+        setMessage(`❌ Failed to save product: ${error.message}`);
+      }      
     } else {
       console.log('✅ Product saved:', data);
       setMessage('✅ Product saved to inventory!');
