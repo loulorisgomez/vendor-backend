@@ -21,7 +21,7 @@ export default function Dashboard() {
     e.preventDefault();
 
     const product = {
-      vendor_id: "test-vendor-id", // 🔥 Temporary: we'll replace this with real logged-in vendor ID soon
+      vendor_id: "1c4f0042-730b-48eb-ab46-83a560bbecea", // 🔥 Temporary: we'll replace this with real logged-in vendor ID soon
       product_name: productName,
       description,
       price: Number(price),
