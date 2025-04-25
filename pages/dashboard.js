@@ -240,6 +240,9 @@ export default function Dashboard() {
             <button type="button" onClick={decreaseQuantity} style={{ padding: '10px', fontSize: '20px' }}>➖</button>
             <button type="button" onClick={increaseQuantity} style={{ padding: '10px', fontSize: '20px' }}>➕</button>
           </div>
+          <button onClick={chooseAddNew} style={{ marginTop: '1rem' }}>
+  Return to Add New Product
+</button>
 
           {message && <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>{message}</p>}
         </div>
