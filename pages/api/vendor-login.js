@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 console.log("🚀 API route loaded: vendor-login.js");
+console.log("🔑 SUPABASE KEY (first 8 chars):", process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 8));
+
 
 
 const supabase = createClient(
