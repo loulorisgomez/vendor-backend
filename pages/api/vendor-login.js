@@ -21,6 +21,7 @@ export default async function handler(req, res) {
   });
 
   if (error || !data?.user) {
+console.log("❌ Supabase login error:", error);
     return res.status(401).json({ error: 'Invalid login credentials' });
   }
 
