@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Html5Qrcode } from "html5-qrcode";
 
-export const dynamic = "force-dynamic"; // ✅ Add this to prevent pre-rendering errors!
+export const dynamic = "force-dynamic";
 
 export default function Dashboard() {
   const [productName, setProductName] = useState('');
@@ -14,6 +14,8 @@ export default function Dashboard() {
   const [barcode, setBarcode] = useState('');
   const [message, setMessage] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [foundProduct, setFoundProduct] = useState(null);
+  const [adjustedQuantity, setAdjustedQuantity] = useState(0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,7 +26,7 @@ export default function Dashboard() {
     );
 
     const product = {
-      vendor_id: "1c4f0042-730b-48eb-ab46-83a560bbecea", // ✅ Your real vendor UUID
+      vendor_id: "1c4f0042-730b-48eb-ab46-83a560bbecea",
       product_name: productName,
       description,
       price: Number(price),
@@ -64,15 +66,14 @@ export default function Dashboard() {
 
       html5QrCode.start(
         { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: 250
-        },
-        (decodedText) => {
+        { fps: 10, qrbox: 250 },
+        async (decodedText) => {
           console.log(`🔍 Scanned Barcode: ${decodedText}`);
           setBarcode(decodedText);
           html5QrCode.stop();
           setScanning(false);
+
+          await searchProductByBarcode(decodedText);
         },
         (errorMessage) => {
           // ignore scan errors
@@ -88,6 +89,63 @@ export default function Dashboard() {
         html5QrCode.stop();
         setScanning(false);
       });
+    }
+  };
+
+  const searchProductByBarcode = async (scannedBarcode) => {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('*')
+      .eq('barcode', scannedBarcode)
+      .single();
+
+    if (error || !data) {
+      console.log('🔎 No product found with this barcode.');
+      setFoundProduct(null);
+      setMessage('No existing product. You can create a new one.');
+    } else {
+      console.log('✅ Product found:', data);
+      setFoundProduct(data);
+      setAdjustedQuantity(data.quantity);
+      setMessage('');
+    }
+  };
+
+  const increaseQuantity = async () => {
+    const newQuantity = adjustedQuantity + 1;
+    await updateQuantityInSupabase(newQuantity);
+  };
+
+  const decreaseQuantity = async () => {
+    if (adjustedQuantity > 0) {
+      const newQuantity = adjustedQuantity - 1;
+      await updateQuantityInSupabase(newQuantity);
+    }
+  };
+
+  const updateQuantityInSupabase = async (newQuantity) => {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
+    const { error } = await supabase
+      .from('inventory')
+      .update({ quantity: newQuantity })
+      .eq('id', foundProduct.id);
+
+    if (error) {
+      console.error('❌ Failed to update quantity:', error);
+      setMessage('❌ Failed to update inventory.');
+    } else {
+      console.log('✅ Inventory updated to', newQuantity);
+      setAdjustedQuantity(newQuantity);
+      setMessage('✅ Inventory updated!');
     }
   };
 
@@ -165,13 +223,22 @@ export default function Dashboard() {
         >
           Save Product
         </button>
-
       </form>
 
-      {message && (
-        <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>
-          {message}
-        </p>
+      {foundProduct && (
+        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+          <h3>Product Found:</h3>
+          <p><strong>Name:</strong> {foundProduct.product_name}</p>
+          <p><strong>Color:</strong> {foundProduct.color}</p>
+          <p><strong>Current Quantity:</strong> {adjustedQuantity}</p>
+
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
+            <button type="button" onClick={decreaseQuantity} style={{ padding: '10px', fontSize: '20px' }}>➖</button>
+            <button type="button" onClick={increaseQuantity} style={{ padding: '10px', fontSize: '20px' }}>➕</button>
+          </div>
+
+          {message && <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>{message}</p>}
+        </div>
       )}
     </div>
   );
