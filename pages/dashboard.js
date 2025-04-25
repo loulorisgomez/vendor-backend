@@ -1,4 +1,11 @@
 import { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+// Setup Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export default function Dashboard() {
   const [productName, setProductName] = useState('');
@@ -14,25 +21,36 @@ export default function Dashboard() {
     e.preventDefault();
 
     const product = {
-      productName,
+      vendor_id: "test-vendor-id", // 🔥 Temporary: we'll replace this with real logged-in vendor ID soon
+      product_name: productName,
       description,
-      price,
-      quantity,
+      price: Number(price),
+      quantity: Number(quantity),
       size,
       color,
       barcode
     };
 
-    console.log('🚀 New Inventory Product:', product);
+    console.log('🚀 Saving to Supabase:', product);
 
-    setMessage('✅ Product saved locally (Supabase connection coming next)');
-    setProductName('');
-    setDescription('');
-    setPrice('');
-    setQuantity('');
-    setSize('');
-    setColor('');
-    setBarcode('');
+    const { data, error } = await supabase
+      .from('inventory')
+      .insert([product]);
+
+    if (error) {
+      console.error('❌ Error saving product:', error);
+      setMessage('❌ Failed to save product.');
+    } else {
+      console.log('✅ Product saved:', data);
+      setMessage('✅ Product saved to inventory!');
+      setProductName('');
+      setDescription('');
+      setPrice('');
+      setQuantity('');
+      setSize('');
+      setColor('');
+      setBarcode('');
+    }
   };
 
   return (
@@ -90,7 +108,7 @@ export default function Dashboard() {
       </form>
 
       {message && (
-        <p style={{ marginTop: '1rem', color: 'green' }}>{message}</p>
+        <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>{message}</p>
       )}
     </div>
   );
