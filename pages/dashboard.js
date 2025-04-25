@@ -40,7 +40,7 @@ export default function Dashboard() {
       if (error) {
         console.error('❌ Error saving product:', error);
         setMessage(`❌ Failed to save product: ${error.message}`);
-      }      
+            
     } else {
       console.log('✅ Product saved:', data);
       setMessage('✅ Product saved to inventory!');
