@@ -22,10 +22,17 @@ export default async function handler(req, res) {
     password
   });
 
-  if (error || !data?.user) {
-console.log("❌ Supabase login error:", error);
-    return res.status(401).json({ error: 'Invalid login credentials' });
-  }
+if (error || !data?.user) {
+  return res.status(401).json({
+    error: 'Invalid login credentials',
+    debug: {
+      supabaseError: error,
+      user: data?.user,
+      full: data
+    }
+  });
+}
+
 
   const { data: vendorData, error: vendorError } = await supabase
     .from('vendors')
