@@ -4,10 +4,10 @@ import { Html5Qrcode } from "html5-qrcode";
 export const dynamic = "force-dynamic";
 
 export default function Dashboard() {
-  const [inventoryType, setInventoryType] = useState(null); // "new" or "used"
+  const [inventoryType, setInventoryType] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [barcode, setBarcode] = useState('');
-  const [productData, setProductData] = useState(null); // Data from Supabase if found
+  const [productData, setProductData] = useState(null);
   const [productName, setProductName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
@@ -115,6 +115,7 @@ export default function Dashboard() {
       console.log('✅ Quantity updated!');
       setMessage('✅ Quantity updated!');
       resetForm();
+      setInventoryType(null);
     }
   };
 
@@ -135,7 +136,7 @@ export default function Dashboard() {
     }
 
     const product = {
-      vendor_id: "1c4f0042-730b-48eb-ab46-83a560bbecea", // 🔥 Temporary vendor ID
+      vendor_id: "1c4f0042-730b-48eb-ab46-83a560bbecea",
       product_name: productName,
       description,
       price: Number(price),
@@ -156,6 +157,7 @@ export default function Dashboard() {
       console.log('✅ Product created!');
       setMessage('✅ Product added to inventory!');
       resetForm();
+      setInventoryType(null);
     }
   };
 
@@ -184,6 +186,16 @@ export default function Dashboard() {
 
       {inventoryType && (
         <>
+          {/* ⬅️ Back button */}
+          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+            <button
+              onClick={() => { setInventoryType(null); resetForm(); }}
+              style={{ padding: '10px', backgroundColor: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              ⬅️ Back to Inventory Type
+            </button>
+          </div>
+
           {!barcode && (
             <>
               <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
