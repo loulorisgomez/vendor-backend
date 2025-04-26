@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { Html5Qrcode } from "html5-qrcode";
 
 export const dynamic = "force-dynamic";
 
 export default function Dashboard() {
+  const [inventoryType, setInventoryType] = useState(null); // "new" or "used"
   const [productName, setProductName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
@@ -12,33 +12,74 @@ export default function Dashboard() {
   const [size, setSize] = useState('');
   const [color, setColor] = useState('');
   const [barcode, setBarcode] = useState('');
-  const [username, setUsername] = useState('');
   const [shoeCondition, setShoeCondition] = useState('');
   const [boxCondition, setBoxCondition] = useState('');
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [scanning, setScanning] = useState(false);
-  const [foundProduct, setFoundProduct] = useState(null);
-  const [adjustedQuantity, setAdjustedQuantity] = useState(0);
-  const [showModal, setShowModal] = useState(false);
-  const [useExistingProduct, setUseExistingProduct] = useState(false);
+
+  const resetForm = () => {
+    setProductName('');
+    setDescription('');
+    setPrice('');
+    setQuantity('');
+    setSize('');
+    setColor('');
+    setBarcode('');
+    setShoeCondition('');
+    setBoxCondition('');
+    setMessage('');
+    setErrorMessage('');
+  };
+
+  const startScanner = () => {
+    const scannerId = "scanner";
+
+    if (!scanning) {
+      const html5QrCode = new Html5Qrcode(scannerId);
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        (decodedText) => {
+          console.log(`🔍 Scanned Barcode: ${decodedText}`);
+          setBarcode(decodedText);
+          html5QrCode.stop();
+          setScanning(false);
+        },
+        (errorMessage) => {
+          // Ignore errors
+        }
+      ).catch(err => {
+        console.error('Camera start error:', err);
+      });
+      setScanning(true);
+    } else {
+      Html5Qrcode.getCameras().then(() => {
+        const html5QrCode = new Html5Qrcode(scannerId);
+        html5QrCode.stop();
+        setScanning(false);
+      });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!barcode || !productName || !price || !username || !shoeCondition || !boxCondition || !size) {
-      setErrorMessage('❌ Please fill in all required fields.');
-      return;
-    }
-
+    const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
 
+    if (!barcode || !productName || !price || !size || !shoeCondition || !boxCondition) {
+      setErrorMessage('❌ Please fill in all required fields.');
+      return;
+    }
+
+    const table = inventoryType === 'new' ? 'new_inventory' : 'used_inventory';
+
     const product = {
-      vendor_id: "1c4f0042-730b-48eb-ab46-83a560bbecea",
-      username,
+      vendor_id: "1c4f0042-730b-48eb-ab46-83a560bbecea", // 🔥 Temporary
       product_name: productName,
       description,
       price: Number(price),
@@ -50,145 +91,31 @@ export default function Dashboard() {
       box_condition: boxCondition
     };
 
-    console.log('🚀 Saving to Supabase:', product);
+    if (inventoryType === 'new') {
+      // Check if barcode already exists
+      const { data: existing, error: checkError } = await supabase
+        .from('new_inventory')
+        .select('*')
+        .eq('barcode', barcode)
+        .maybeSingle();
 
-    const { data, error } = await supabase
-      .from('inventory')
+      if (existing) {
+        setErrorMessage('❌ Barcode already exists for a new product!');
+        return;
+      }
+    }
+
+    const { error } = await supabase
+      .from(table)
       .insert([product]);
 
     if (error) {
       console.error('❌ Error saving product:', error);
       setErrorMessage(`❌ Failed to save product: ${error.message}`);
     } else {
-      console.log('✅ Product saved:', data);
-      setMessage('✅ Product saved to inventory!');
+      console.log('✅ Product saved to', table);
+      setMessage(`✅ Product saved to ${inventoryType === 'new' ? 'New' : 'Used'} Inventory!`);
       resetForm();
-    }
-  };
-
-  const resetForm = () => {
-    setProductName('');
-    setDescription('');
-    setPrice('');
-    setQuantity('');
-    setSize('');
-    setColor('');
-    setBarcode('');
-    setUsername('');
-    setShoeCondition('');
-    setBoxCondition('');
-    setFoundProduct(null);
-    setUseExistingProduct(false);
-    setMessage('');
-    setErrorMessage('');
-  };
-
-  const startScanner = () => {
-    const scannerId = "scanner";
-
-    if (!scanning) {
-      const html5QrCode = new Html5Qrcode(scannerId);
-
-      html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
-        async (decodedText) => {
-          console.log(`🔍 Scanned Barcode: ${decodedText}`);
-          setBarcode(decodedText);
-          html5QrCode.stop();
-          setScanning(false);
-
-          await searchProductByBarcode(decodedText);
-        },
-        (errorMessage) => {
-          // ignore scan errors
-        }
-      ).catch(err => {
-        console.error('Camera start error:', err);
-      });
-
-      setScanning(true);
-    } else {
-      Html5Qrcode.getCameras().then(() => {
-        const html5QrCode = new Html5Qrcode(scannerId);
-        html5QrCode.stop();
-        setScanning(false);
-      });
-    }
-  };
-
-  const searchProductByBarcode = async (scannedBarcode) => {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    );
-
-    const { data, error } = await supabase
-      .from('inventory')
-      .select('*')
-      .eq('barcode', scannedBarcode)
-      .maybeSingle();
-
-    if (error || !data) {
-      console.log('🔎 No product found with this barcode.');
-      setFoundProduct(null);
-      setUseExistingProduct(false);
-      setShowModal(false);
-      setMessage('No existing product. You can create a new one.');
-    } else {
-      console.log('✅ Product found:', data);
-      setFoundProduct(data);
-      setAdjustedQuantity(data.quantity);
-      setShowModal(true);
-      setMessage('');
-    }
-  };
-
-  const chooseUseExisting = () => {
-    setUseExistingProduct(true);
-    setShowModal(false);
-    setMessage('');
-    setErrorMessage('');
-  };
-
-  const chooseAddNew = () => {
-    setFoundProduct(null);
-    setUseExistingProduct(false);
-    setShowModal(false);
-    setMessage('');
-    setErrorMessage('');
-  };
-
-  const increaseQuantity = async () => {
-    const newQuantity = adjustedQuantity + 1;
-    await updateQuantityInSupabase(newQuantity);
-  };
-
-  const decreaseQuantity = async () => {
-    if (adjustedQuantity > 0) {
-      const newQuantity = adjustedQuantity - 1;
-      await updateQuantityInSupabase(newQuantity);
-    }
-  };
-
-  const updateQuantityInSupabase = async (newQuantity) => {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    );
-
-    const { error } = await supabase
-      .from('inventory')
-      .update({ quantity: newQuantity })
-      .eq('id', foundProduct.id);
-
-    if (error) {
-      console.error('❌ Failed to update quantity:', error);
-      setMessage('❌ Failed to update inventory.');
-    } else {
-      console.log('✅ Inventory updated to', newQuantity);
-      setAdjustedQuantity(newQuantity);
-      setMessage('✅ Inventory updated!');
     }
   };
 
@@ -212,35 +139,42 @@ export default function Dashboard() {
     <div style={{ padding: '2rem', maxWidth: '600px', margin: 'auto' }}>
       <h1 style={{ textAlign: 'center' }}>Vendor Dashboard</h1>
 
-      {/* Modal when barcode matches existing */}
-      {showModal && (
-        <div style={{ background: '#eee', padding: '1rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
-          <h3>Product Found!</h3>
-          <p><strong>Name:</strong> {foundProduct?.product_name}</p>
-          <p><strong>Color:</strong> {foundProduct?.color}</p>
-          <p><strong>Size:</strong> {foundProduct?.size}</p>
-          <p><strong>Condition:</strong> {foundProduct?.shoe_condition}</p>
-          <p><strong>Box:</strong> {foundProduct?.box_condition}</p>
-          <p>Would you like to use this product or create a new listing?</p>
-          <button onClick={chooseUseExisting} style={{ marginRight: '1rem', padding: '8px 16px' }}>Use Product</button>
-          <button onClick={chooseAddNew} style={{ padding: '8px 16px' }}>Add New Product</button>
+      {/* Inventory Type Selection */}
+      {!inventoryType && (
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <h3>What would you like to add?</h3>
+          <button 
+            onClick={() => setInventoryType('new')}
+            style={{ marginRight: '1rem', padding: '10px 20px' }}
+          >
+            Add New Inventory
+          </button>
+          <button 
+            onClick={() => setInventoryType('used')}
+            style={{ padding: '10px 20px' }}
+          >
+            Add Used Inventory
+          </button>
         </div>
       )}
 
-      {/* Main Form */}
-      {!useExistingProduct && (
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-          <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+      {/* Inventory Form */}
+      {inventoryType && (
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h3 style={{ textAlign: 'center' }}>
+            {inventoryType === 'new' ? "New Inventory Form" : "Used Inventory Form"}
+          </h3>
+
           <input type="text" placeholder="Product Name" value={productName} onChange={(e) => setProductName(e.target.value)} required />
           <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows="3" />
-          
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span>$</span>
             <input type="number" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} required />
           </div>
 
           <input type="number" placeholder="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-          
+
           <select value={size} onChange={(e) => setSize(e.target.value)} required>
             <option value="">Select Size</option>
             {sizeOptions.map((option) => (
@@ -249,6 +183,7 @@ export default function Dashboard() {
           </select>
 
           <input type="text" placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
+
           <input type="text" placeholder="Barcode" value={barcode} onChange={(e) => setBarcode(e.target.value)} required />
 
           <select value={shoeCondition} onChange={(e) => setShoeCondition(e.target.value)} required>
@@ -275,34 +210,13 @@ export default function Dashboard() {
             Save Product
           </button>
 
-          <button type="button" onClick={resetForm} style={{ padding: '10px', backgroundColor: '#aaa', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            Clear Form
+          <button type="button" onClick={() => { setInventoryType(null); resetForm(); }} style={{ padding: '10px', backgroundColor: '#aaa', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            Back to Inventory Type
           </button>
 
           {errorMessage && <p style={{ marginTop: '1rem', color: 'red' }}>{errorMessage}</p>}
           {message && <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>{message}</p>}
         </form>
-      )}
-
-      {/* If using existing product */}
-      {useExistingProduct && foundProduct && (
-        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-          <h3>Product: {foundProduct.product_name}</h3>
-          <p><strong>Color:</strong> {foundProduct.color}</p>
-          <p><strong>Size:</strong> {foundProduct.size}</p>
-          <p><strong>Quantity:</strong> {adjustedQuantity}</p>
-
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
-            <button type="button" onClick={decreaseQuantity} style={{ padding: '10px', fontSize: '20px' }}>➖</button>
-            <button type="button" onClick={increaseQuantity} style={{ padding: '10px', fontSize: '20px' }}>➕</button>
-          </div>
-
-          <button onClick={chooseAddNew} style={{ marginTop: '1rem', padding: '10px', backgroundColor: 'gray', color: 'white', borderRadius: '4px' }}>
-            Return to Add New Product
-          </button>
-
-          {message && <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>{message}</p>}
-        </div>
       )}
     </div>
   );
