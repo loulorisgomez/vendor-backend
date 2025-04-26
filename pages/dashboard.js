@@ -15,6 +15,8 @@ export default function Dashboard() {
   const [quantity, setQuantity] = useState('');
   const [size, setSize] = useState('');
   const [color, setColor] = useState('');
+  const [shoeCondition, setShoeCondition] = useState('');
+  const [boxCondition, setBoxCondition] = useState('');
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -27,6 +29,8 @@ export default function Dashboard() {
     setQuantity('');
     setSize('');
     setColor('');
+    setShoeCondition('');
+    setBoxCondition('');
     setMessage('');
     setErrorMessage('');
     setManualEntry(false);
@@ -145,7 +149,11 @@ export default function Dashboard() {
       quantity: Number(quantity),
       size,
       color,
-      barcode
+      barcode,
+      ...(inventoryType === 'used' && {
+        shoe_condition: shoeCondition,
+        box_condition: boxCondition
+      })
     };
 
     const { error } = await supabase
@@ -170,6 +178,24 @@ export default function Dashboard() {
     "12.5M/14W", "13M/14.5W", "13.5M/15W", "14M/15.5W"
   ];
 
+  const shoeConditionOptions = [
+    "New-DS OG ALL",
+    "New - DS OG Most",
+    "New - DS No Accessories",
+    "Tried On",
+    "PADS",
+    "Used"
+  ];
+
+  const boxConditionOptions = [
+    "Good Box",
+    "Aged Box",
+    "Slight Damage",
+    "No Box",
+    "Replica Box",
+    "Replacement Box"
+  ];
+
   return (
     <div style={{ padding: '2rem', maxWidth: '600px', margin: 'auto' }}>
       <h1 style={{ textAlign: 'center' }}>Vendor Dashboard</h1>
@@ -188,7 +214,6 @@ export default function Dashboard() {
 
       {inventoryType && !barcode && !manualEntry && (
         <>
-          {/* ⬅️ Back button */}
           <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
             <button onClick={() => { setInventoryType(null); resetForm(); }}
               style={{ padding: '10px', backgroundColor: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
@@ -197,7 +222,6 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* 🔥 Two options: Scan or Enter Manually */}
           <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
             <button onClick={startScanner} style={{ marginRight: '1rem', padding: '10px 20px' }}>
               Scan Barcode
@@ -212,33 +236,62 @@ export default function Dashboard() {
       )}
 
       {(barcode || manualEntry) && !productData && (
-        <form onSubmit={handleSubmitNewProduct} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3>Add New Product</h3>
-
-          <input type="text" placeholder="Product Name" value={productName} onChange={(e) => setProductName(e.target.value)} required />
-          <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows="3" />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>$</span>
-            <input type="number" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} required />
+        <>
+          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+            <button onClick={() => { setManualEntry(false); setBarcode(''); }}
+              style={{ padding: '10px', backgroundColor: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              ⬅️ Back to Scan/Manual Choice
+            </button>
           </div>
 
-          <input type="number" placeholder="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          <form onSubmit={handleSubmitNewProduct} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h3>Add New Product</h3>
 
-          <select value={size} onChange={(e) => setSize(e.target.value)} required>
-            <option value="">Select Size</option>
-            {sizeOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
+            <input type="text" placeholder="Product Name" value={productName} onChange={(e) => setProductName(e.target.value)} required />
+            <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows="3" />
 
-          <input type="text" placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
-          <input type="text" placeholder="Barcode (optional)" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>$</span>
+              <input type="number" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} required />
+            </div>
 
-          <button type="submit" style={{ padding: '10px', backgroundColor: 'black', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            Save Product
-          </button>
-        </form>
+            <input type="number" placeholder="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+
+            <select value={size} onChange={(e) => setSize(e.target.value)} required>
+              <option value="">Select Size</option>
+              {sizeOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            <input type="text" placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
+
+            {inventoryType === 'used' && (
+              <>
+                <select value={shoeCondition} onChange={(e) => setShoeCondition(e.target.value)} required>
+                  <option value="">Select Shoe Condition</option>
+                  {shoeConditionOptions.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+
+                <select value={boxCondition} onChange={(e) => setBoxCondition(e.target.value)} required>
+                  <option value="">Select Box Condition</option>
+                  {boxConditionOptions.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </>
+            )}
+
+            <input type="text" placeholder="Barcode (optional)" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
+
+            <button type="submit" style={{ padding: '10px', backgroundColor: 'black', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+              Save Product
+            </button>
+          </form>
+        </>
       )}
 
       {barcode && productData && (
