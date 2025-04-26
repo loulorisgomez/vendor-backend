@@ -5,29 +5,27 @@ export const dynamic = "force-dynamic";
 
 export default function Dashboard() {
   const [inventoryType, setInventoryType] = useState(null); // "new" or "used"
+  const [scanning, setScanning] = useState(false);
+  const [barcode, setBarcode] = useState('');
+  const [productData, setProductData] = useState(null); // Data from Supabase if found
   const [productName, setProductName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [size, setSize] = useState('');
   const [color, setColor] = useState('');
-  const [barcode, setBarcode] = useState('');
-  const [shoeCondition, setShoeCondition] = useState('');
-  const [boxCondition, setBoxCondition] = useState('');
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [scanning, setScanning] = useState(false);
 
   const resetForm = () => {
+    setBarcode('');
+    setProductData(null);
     setProductName('');
     setDescription('');
     setPrice('');
     setQuantity('');
     setSize('');
     setColor('');
-    setBarcode('');
-    setShoeCondition('');
-    setBoxCondition('');
     setMessage('');
     setErrorMessage('');
   };
@@ -40,14 +38,16 @@ export default function Dashboard() {
       html5QrCode.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
-        (decodedText) => {
+        async (decodedText) => {
           console.log(`🔍 Scanned Barcode: ${decodedText}`);
           setBarcode(decodedText);
           html5QrCode.stop();
           setScanning(false);
+
+          await checkBarcode(decodedText);
         },
         (errorMessage) => {
-          // Ignore errors
+          console.error('Camera error:', errorMessage);
         }
       ).catch(err => {
         console.error('Camera start error:', err);
@@ -62,7 +62,63 @@ export default function Dashboard() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const checkBarcode = async (scannedBarcode) => {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
+    const table = inventoryType === 'new' ? 'new_inventory' : 'used_inventory';
+
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq('barcode', scannedBarcode)
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ Error checking barcode:', error);
+      setErrorMessage('Error checking barcode.');
+    } else if (data) {
+      console.log('✅ Product Found:', data);
+      setProductData(data);
+      setQuantity(data.quantity || 0);
+    } else {
+      console.log('🔍 No matching product found.');
+      setProductData(null);
+    }
+  };
+
+  const adjustQuantity = (amount) => {
+    setQuantity((prev) => Math.max(0, parseInt(prev || 0) + amount));
+  };
+
+  const saveQuantityUpdate = async () => {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
+    const table = inventoryType === 'new' ? 'new_inventory' : 'used_inventory';
+
+    const { error } = await supabase
+      .from(table)
+      .update({ quantity: quantity })
+      .eq('id', productData.id);
+
+    if (error) {
+      console.error('❌ Error updating quantity:', error);
+      setErrorMessage('Failed to update quantity.');
+    } else {
+      console.log('✅ Quantity updated!');
+      setMessage('✅ Quantity updated!');
+      resetForm();
+    }
+  };
+
+  const handleSubmitNewProduct = async (e) => {
     e.preventDefault();
 
     const { createClient } = await import('@supabase/supabase-js');
@@ -71,50 +127,34 @@ export default function Dashboard() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
 
-    if (!barcode || !productName || !price || !size || !shoeCondition || !boxCondition) {
-      setErrorMessage('❌ Please fill in all required fields.');
+    const table = inventoryType === 'new' ? 'new_inventory' : 'used_inventory';
+
+    if (!productName || !price || !size || !barcode) {
+      setErrorMessage('Please fill all required fields.');
       return;
     }
 
-    const table = inventoryType === 'new' ? 'new_inventory' : 'used_inventory';
-
     const product = {
-      vendor_id: "1c4f0042-730b-48eb-ab46-83a560bbecea", // 🔥 Temporary
+      vendor_id: "1c4f0042-730b-48eb-ab46-83a560bbecea", // 🔥 Temporary vendor ID
       product_name: productName,
       description,
       price: Number(price),
       quantity: Number(quantity),
       size,
       color,
-      barcode,
-      shoe_condition: shoeCondition,
-      box_condition: boxCondition
+      barcode
     };
-
-    if (inventoryType === 'new') {
-      // Check if barcode already exists
-      const { data: existing, error: checkError } = await supabase
-        .from('new_inventory')
-        .select('*')
-        .eq('barcode', barcode)
-        .maybeSingle();
-
-      if (existing) {
-        setErrorMessage('❌ Barcode already exists for a new product!');
-        return;
-      }
-    }
 
     const { error } = await supabase
       .from(table)
       .insert([product]);
 
     if (error) {
-      console.error('❌ Error saving product:', error);
-      setErrorMessage(`❌ Failed to save product: ${error.message}`);
+      console.error('❌ Error creating product:', error);
+      setErrorMessage('Failed to create new product.');
     } else {
-      console.log('✅ Product saved to', table);
-      setMessage(`✅ Product saved to ${inventoryType === 'new' ? 'New' : 'Used'} Inventory!`);
+      console.log('✅ Product created!');
+      setMessage('✅ Product added to inventory!');
       resetForm();
     }
   };
@@ -126,98 +166,84 @@ export default function Dashboard() {
     "12.5M/14W", "13M/14.5W", "13.5M/15W", "14M/15.5W"
   ];
 
-  const shoeConditionOptions = [
-    "New-DS OG ALL", "New-DS OG Most", "New-DS No Accessories",
-    "Tried On", "PADS", "Used"
-  ];
-
-  const boxConditionOptions = [
-    "Good Box", "Aged Box", "Slight Damage", "No Box", "Replica Box", "Replacement Box"
-  ];
-
   return (
     <div style={{ padding: '2rem', maxWidth: '600px', margin: 'auto' }}>
       <h1 style={{ textAlign: 'center' }}>Vendor Dashboard</h1>
 
-      {/* Inventory Type Selection */}
       {!inventoryType && (
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <h3>What would you like to add?</h3>
-          <button 
-            onClick={() => setInventoryType('new')}
-            style={{ marginRight: '1rem', padding: '10px 20px' }}
-          >
+          <button onClick={() => setInventoryType('new')} style={{ marginRight: '1rem', padding: '10px 20px' }}>
             Add New Inventory
           </button>
-          <button 
-            onClick={() => setInventoryType('used')}
-            style={{ padding: '10px 20px' }}
-          >
+          <button onClick={() => setInventoryType('used')} style={{ padding: '10px 20px' }}>
             Add Used Inventory
           </button>
         </div>
       )}
 
-      {/* Inventory Form */}
       {inventoryType && (
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ textAlign: 'center' }}>
-            {inventoryType === 'new' ? "New Inventory Form" : "Used Inventory Form"}
-          </h3>
+        <>
+          {!barcode && (
+            <>
+              <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                <button onClick={startScanner} style={{ padding: '10px', backgroundColor: 'gray', color: 'white', border: 'none', borderRadius: '4px' }}>
+                  {scanning ? "Stop Scanning" : "Scan Barcode"}
+                </button>
+              </div>
+              <div id="scanner" style={{ width: "100%", display: scanning ? "block" : "none", marginBottom: "1rem" }}></div>
+            </>
+          )}
 
-          <input type="text" placeholder="Product Name" value={productName} onChange={(e) => setProductName(e.target.value)} required />
-          <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows="3" />
+          {barcode && productData && (
+            <div style={{ textAlign: 'center' }}>
+              <h3>Product Found: {productData.product_name}</h3>
+              <p>Size: {productData.size}</p>
+              <p>Current Quantity: {quantity}</p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
+                <button onClick={() => adjustQuantity(-1)}>-</button>
+                <button onClick={() => adjustQuantity(1)}>+</button>
+              </div>
+              <button onClick={saveQuantityUpdate} style={{ marginTop: '1rem', padding: '10px', backgroundColor: 'black', color: 'white', border: 'none' }}>
+                Save Changes
+              </button>
+            </div>
+          )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>$</span>
-            <input type="number" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} required />
-          </div>
+          {barcode && !productData && (
+            <form onSubmit={handleSubmitNewProduct} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <h3>Add New Product</h3>
 
-          <input type="number" placeholder="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <input type="text" placeholder="Product Name" value={productName} onChange={(e) => setProductName(e.target.value)} required />
+              <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows="3" />
 
-          <select value={size} onChange={(e) => setSize(e.target.value)} required>
-            <option value="">Select Size</option>
-            {sizeOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>$</span>
+                <input type="number" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} required />
+              </div>
 
-          <input type="text" placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
+              <input type="number" placeholder="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
 
-          <input type="text" placeholder="Barcode" value={barcode} onChange={(e) => setBarcode(e.target.value)} required />
+              <select value={size} onChange={(e) => setSize(e.target.value)} required>
+                <option value="">Select Size</option>
+                {sizeOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
 
-          <select value={shoeCondition} onChange={(e) => setShoeCondition(e.target.value)} required>
-            <option value="">Select Shoe Condition</option>
-            {shoeConditionOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
+              <input type="text" placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
+              <input type="text" placeholder="Barcode" value={barcode} readOnly />
 
-          <select value={boxCondition} onChange={(e) => setBoxCondition(e.target.value)} required>
-            <option value="">Select Box Condition</option>
-            {boxConditionOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-
-          <div id="scanner" style={{ width: "100%", display: scanning ? "block" : "none", marginBottom: "1rem" }}></div>
-
-          <button type="button" onClick={startScanner} style={{ padding: '10px', backgroundColor: 'gray', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            {scanning ? "Stop Scanning" : "Scan Barcode"}
-          </button>
-
-          <button type="submit" style={{ padding: '10px', backgroundColor: 'black', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            Save Product
-          </button>
-
-          <button type="button" onClick={() => { setInventoryType(null); resetForm(); }} style={{ padding: '10px', backgroundColor: '#aaa', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            Back to Inventory Type
-          </button>
-
-          {errorMessage && <p style={{ marginTop: '1rem', color: 'red' }}>{errorMessage}</p>}
-          {message && <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>{message}</p>}
-        </form>
+              <button type="submit" style={{ padding: '10px', backgroundColor: 'black', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                Save Product
+              </button>
+            </form>
+          )}
+        </>
       )}
+
+      {errorMessage && <p style={{ marginTop: '1rem', color: 'red' }}>{errorMessage}</p>}
+      {message && <p style={{ marginTop: '1rem', color: 'green' }}>{message}</p>}
     </div>
   );
 }
