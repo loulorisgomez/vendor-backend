@@ -12,6 +12,9 @@ export default function Dashboard() {
   const [size, setSize] = useState('');
   const [color, setColor] = useState('');
   const [barcode, setBarcode] = useState('');
+  const [username, setUsername] = useState('');
+  const [shoeCondition, setShoeCondition] = useState('');
+  const [boxCondition, setBoxCondition] = useState('');
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [scanning, setScanning] = useState(false);
@@ -20,39 +23,31 @@ export default function Dashboard() {
   const [showModal, setShowModal] = useState(false);
   const [useExistingProduct, setUseExistingProduct] = useState(false);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!barcode) {
-      setErrorMessage('❌ Barcode is required.');
+    if (!barcode || !productName || !price || !username || !shoeCondition || !boxCondition || !size) {
+      setErrorMessage('❌ Please fill in all required fields.');
       return;
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-    const { data: existing, error: lookupError } = await supabase
-      .from('inventory')
-      .select('id')
-      .eq('barcode', barcode)
-      .single();
-
-    if (existing) {
-      setErrorMessage('❌ Barcode already exists. Please scan a different product.');
-      return;
-    }
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
 
     const product = {
       vendor_id: "1c4f0042-730b-48eb-ab46-83a560bbecea",
+      username,
       product_name: productName,
       description,
       price: Number(price),
       quantity: Number(quantity),
       size,
       color,
-      barcode
+      barcode,
+      shoe_condition: shoeCondition,
+      box_condition: boxCondition
     };
 
     console.log('🚀 Saving to Supabase:', product);
@@ -79,6 +74,9 @@ export default function Dashboard() {
     setSize('');
     setColor('');
     setBarcode('');
+    setUsername('');
+    setShoeCondition('');
+    setBoxCondition('');
     setFoundProduct(null);
     setUseExistingProduct(false);
     setMessage('');
@@ -111,7 +109,7 @@ export default function Dashboard() {
 
       setScanning(true);
     } else {
-      Html5Qrcode.getCameras().then((cameras) => {
+      Html5Qrcode.getCameras().then(() => {
         const html5QrCode = new Html5Qrcode(scannerId);
         html5QrCode.stop();
         setScanning(false);
@@ -120,13 +118,16 @@ export default function Dashboard() {
   };
 
   const searchProductByBarcode = async (scannedBarcode) => {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
 
     const { data, error } = await supabase
       .from('inventory')
       .select('*')
       .eq('barcode', scannedBarcode)
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       console.log('🔎 No product found with this barcode.');
@@ -171,7 +172,10 @@ export default function Dashboard() {
   };
 
   const updateQuantityInSupabase = async (newQuantity) => {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
 
     const { error } = await supabase
       .from('inventory')
@@ -195,24 +199,38 @@ export default function Dashboard() {
     "12.5M/14W", "13M/14.5W", "13.5M/15W", "14M/15.5W"
   ];
 
+  const shoeConditionOptions = [
+    "New-DS OG ALL", "New-DS OG Most", "New-DS No Accessories",
+    "Tried On", "PADS", "Used"
+  ];
+
+  const boxConditionOptions = [
+    "Good Box", "Aged Box", "Slight Damage", "No Box", "Replica Box", "Replacement Box"
+  ];
+
   return (
     <div style={{ padding: '2rem', maxWidth: '600px', margin: 'auto' }}>
       <h1 style={{ textAlign: 'center' }}>Vendor Dashboard</h1>
 
+      {/* Modal when barcode matches existing */}
       {showModal && (
         <div style={{ background: '#eee', padding: '1rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
           <h3>Product Found!</h3>
           <p><strong>Name:</strong> {foundProduct?.product_name}</p>
           <p><strong>Color:</strong> {foundProduct?.color}</p>
           <p><strong>Size:</strong> {foundProduct?.size}</p>
-          <p>Would you like to use this product or create a new one?</p>
+          <p><strong>Condition:</strong> {foundProduct?.shoe_condition}</p>
+          <p><strong>Box:</strong> {foundProduct?.box_condition}</p>
+          <p>Would you like to use this product or create a new listing?</p>
           <button onClick={chooseUseExisting} style={{ marginRight: '1rem', padding: '8px 16px' }}>Use Product</button>
           <button onClick={chooseAddNew} style={{ padding: '8px 16px' }}>Add New Product</button>
         </div>
       )}
 
+      {/* Main Form */}
       {!useExistingProduct && (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+          <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} required />
           <input type="text" placeholder="Product Name" value={productName} onChange={(e) => setProductName(e.target.value)} required />
           <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows="3" />
           
@@ -222,7 +240,7 @@ export default function Dashboard() {
           </div>
 
           <input type="number" placeholder="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-
+          
           <select value={size} onChange={(e) => setSize(e.target.value)} required>
             <option value="">Select Size</option>
             {sizeOptions.map((option) => (
@@ -231,7 +249,21 @@ export default function Dashboard() {
           </select>
 
           <input type="text" placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
-          <input type="text" placeholder="Barcode (optional)" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
+          <input type="text" placeholder="Barcode" value={barcode} onChange={(e) => setBarcode(e.target.value)} required />
+
+          <select value={shoeCondition} onChange={(e) => setShoeCondition(e.target.value)} required>
+            <option value="">Select Shoe Condition</option>
+            {shoeConditionOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+
+          <select value={boxCondition} onChange={(e) => setBoxCondition(e.target.value)} required>
+            <option value="">Select Box Condition</option>
+            {boxConditionOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
 
           <div id="scanner" style={{ width: "100%", display: scanning ? "block" : "none", marginBottom: "1rem" }}></div>
 
@@ -247,15 +279,12 @@ export default function Dashboard() {
             Clear Form
           </button>
 
-          {errorMessage && (
-            <p style={{ marginTop: '1rem', color: 'red' }}>{errorMessage}</p>
-          )}
-          {message && (
-            <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>{message}</p>
-          )}
+          {errorMessage && <p style={{ marginTop: '1rem', color: 'red' }}>{errorMessage}</p>}
+          {message && <p style={{ marginTop: '1rem', color: message.startsWith('✅') ? 'green' : 'red' }}>{message}</p>}
         </form>
       )}
 
+      {/* If using existing product */}
       {useExistingProduct && foundProduct && (
         <div style={{ marginTop: '2rem', textAlign: 'center' }}>
           <h3>Product: {foundProduct.product_name}</h3>
