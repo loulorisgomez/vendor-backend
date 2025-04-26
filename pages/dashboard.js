@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 export default function Dashboard() {
   const [inventoryType, setInventoryType] = useState(null);
   const [scanning, setScanning] = useState(false);
+  const [manualEntry, setManualEntry] = useState(false);
   const [barcode, setBarcode] = useState('');
   const [productData, setProductData] = useState(null);
   const [productName, setProductName] = useState('');
@@ -28,6 +29,7 @@ export default function Dashboard() {
     setColor('');
     setMessage('');
     setErrorMessage('');
+    setManualEntry(false);
   };
 
   const startScanner = () => {
@@ -130,7 +132,7 @@ export default function Dashboard() {
 
     const table = inventoryType === 'new' ? 'new_inventory' : 'used_inventory';
 
-    if (!productName || !price || !size || !barcode) {
+    if (!productName || !price || !size) {
       setErrorMessage('Please fill all required fields.');
       return;
     }
@@ -184,74 +186,74 @@ export default function Dashboard() {
         </div>
       )}
 
-      {inventoryType && (
+      {inventoryType && !barcode && !manualEntry && (
         <>
           {/* ⬅️ Back button */}
           <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-            <button
-              onClick={() => { setInventoryType(null); resetForm(); }}
+            <button onClick={() => { setInventoryType(null); resetForm(); }}
               style={{ padding: '10px', backgroundColor: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
             >
               ⬅️ Back to Inventory Type
             </button>
           </div>
 
-          {!barcode && (
-            <>
-              <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                <button onClick={startScanner} style={{ padding: '10px', backgroundColor: 'gray', color: 'white', border: 'none', borderRadius: '4px' }}>
-                  {scanning ? "Stop Scanning" : "Scan Barcode"}
-                </button>
-              </div>
-              <div id="scanner" style={{ width: "100%", display: scanning ? "block" : "none", marginBottom: "1rem" }}></div>
-            </>
-          )}
+          {/* 🔥 Two options: Scan or Enter Manually */}
+          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+            <button onClick={startScanner} style={{ marginRight: '1rem', padding: '10px 20px' }}>
+              Scan Barcode
+            </button>
+            <button onClick={() => setManualEntry(true)} style={{ padding: '10px 20px' }}>
+              Enter Manually
+            </button>
+          </div>
 
-          {barcode && productData && (
-            <div style={{ textAlign: 'center' }}>
-              <h3>Product Found: {productData.product_name}</h3>
-              <p>Size: {productData.size}</p>
-              <p>Current Quantity: {quantity}</p>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
-                <button onClick={() => adjustQuantity(-1)}>-</button>
-                <button onClick={() => adjustQuantity(1)}>+</button>
-              </div>
-              <button onClick={saveQuantityUpdate} style={{ marginTop: '1rem', padding: '10px', backgroundColor: 'black', color: 'white', border: 'none' }}>
-                Save Changes
-              </button>
-            </div>
-          )}
-
-          {barcode && !productData && (
-            <form onSubmit={handleSubmitNewProduct} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <h3>Add New Product</h3>
-
-              <input type="text" placeholder="Product Name" value={productName} onChange={(e) => setProductName(e.target.value)} required />
-              <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows="3" />
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span>$</span>
-                <input type="number" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} required />
-              </div>
-
-              <input type="number" placeholder="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-
-              <select value={size} onChange={(e) => setSize(e.target.value)} required>
-                <option value="">Select Size</option>
-                {sizeOptions.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-
-              <input type="text" placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
-              <input type="text" placeholder="Barcode" value={barcode} readOnly />
-
-              <button type="submit" style={{ padding: '10px', backgroundColor: 'black', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                Save Product
-              </button>
-            </form>
-          )}
+          <div id="scanner" style={{ width: "100%", display: scanning ? "block" : "none", marginBottom: "1rem" }}></div>
         </>
+      )}
+
+      {(barcode || manualEntry) && !productData && (
+        <form onSubmit={handleSubmitNewProduct} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h3>Add New Product</h3>
+
+          <input type="text" placeholder="Product Name" value={productName} onChange={(e) => setProductName(e.target.value)} required />
+          <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} rows="3" />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>$</span>
+            <input type="number" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} required />
+          </div>
+
+          <input type="number" placeholder="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+
+          <select value={size} onChange={(e) => setSize(e.target.value)} required>
+            <option value="">Select Size</option>
+            {sizeOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+
+          <input type="text" placeholder="Color" value={color} onChange={(e) => setColor(e.target.value)} />
+          <input type="text" placeholder="Barcode (optional)" value={barcode} onChange={(e) => setBarcode(e.target.value)} />
+
+          <button type="submit" style={{ padding: '10px', backgroundColor: 'black', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            Save Product
+          </button>
+        </form>
+      )}
+
+      {barcode && productData && (
+        <div style={{ textAlign: 'center' }}>
+          <h3>Product Found: {productData.product_name}</h3>
+          <p>Size: {productData.size}</p>
+          <p>Current Quantity: {quantity}</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
+            <button onClick={() => adjustQuantity(-1)}>-</button>
+            <button onClick={() => adjustQuantity(1)}>+</button>
+          </div>
+          <button onClick={saveQuantityUpdate} style={{ marginTop: '1rem', padding: '10px', backgroundColor: 'black', color: 'white', border: 'none' }}>
+            Save Changes
+          </button>
+        </div>
       )}
 
       {errorMessage && <p style={{ marginTop: '1rem', color: 'red' }}>{errorMessage}</p>}
